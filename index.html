@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Compact Dark Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Glassmorphism & Translucent button styling */
+        .btn-calc {
+            background-color: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            transition: transform 0.08s ease, background-color 0.15s ease;
+        }
+
+        .btn-calc:active {
+            transform: scale(0.92);
+            background-color: rgba(255, 255, 255, 0.28);
+        }
+
+        .btn-orange {
+            background-color: #f37021;
+            color: #ffffff;
+            transition: transform 0.08s ease, background-color 0.15s ease;
+        }
+
+        .btn-orange:active {
+            transform: scale(0.92);
+            background-color: #d65c12;
+        }
+
+        .btn-sci-active {
+            background-color: rgba(243, 112, 33, 0.25);
+            border: 1px solid #f37021;
+            color: #f37021;
+        }
+
+        /* Blinking orange cursor line */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .cursor-line {
+            width: 3px;
+            height: 2.2rem;
+            background-color: #f37021;
+            border-radius: 2px;
+            display: inline-block;
+            animation: blink 1.1s infinite;
+            vertical-align: middle;
+            margin-left: 2px;
+        }
+
+        /* Scrollbar styling */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Slide drawer animation */
+        .drawer-slide {
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.85); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .animate-pop {
+            animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-2 sm:p-4">
+
+    <div class="relative w-full max-w-[340px] bg-black rounded-[38px] p-5 shadow-2xl border border-neutral-900 flex flex-col justify-between overflow-hidden select-none min-h-[620px]">
+        
+        <!-- Top Status / Tool Bar -->
+        <div class="flex justify-between items-center text-neutral-400 text-sm pt-1 px-1 z-10">
+            <button id="mode-icon-btn" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-neutral-800/80 active:scale-95 transition" title="Layout Mode">
+                <i class="fa-solid fa-shapes text-base"></i>
+            </button>
+
+            <div class="flex items-center gap-1 bg-neutral-900/80 rounded-full px-3 py-1 border border-neutral-800">
+                <button id="history-btn" class="p-1 hover:text-white transition" title="History">
+                    <i class="fa-regular fa-clock text-sm"></i>
+                </button>
+                <span class="text-neutral-600">|</span>
+                <button id="options-btn" class="p-1 hover:text-white transition" title="Options">
+                    <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Expression Display (No Preview Below) -->
+        <div class="flex-1 flex flex-col justify-end items-end px-2 my-6 overflow-hidden min-h-[140px] text-right">
+            <!-- Secondary Expression Screen when evaluating -->
+            <div id="expression" class="text-neutral-400 text-sm sm:text-base font-light tracking-wide overflow-x-auto no-scrollbar max-w-full whitespace-nowrap mb-1 h-6"></div>
+            
+            <!-- Main Display Output with Orange Cursor -->
+            <div class="flex items-center justify-end w-full overflow-x-auto no-scrollbar">
+                <span id="display" class="text-3xl sm:text-4xl font-normal tracking-tight text-white whitespace-nowrap">0</span>
+                <span class="cursor-line"></span>
+            </div>
+        </div>
+
+        <!-- Scientific Functions Drawer -->
+        <div id="sci-panel" class="grid grid-cols-4 gap-2.5 mb-2.5 hidden transition-all duration-300">
+            <button class="btn-calc text-neutral-300 text-xs sm:text-sm rounded-full h-11 flex items-center justify-center font-medium" onclick="appendScientific('sqrt(')">√</button>
+            <button class="btn-calc text-neutral-300 text-xs sm:text-sm rounded-full h-11 flex items-center justify-center font-medium" onclick="appendScientific('π')">π</button>
+            <button class="btn-calc text-neutral-300 text-xs sm:text-sm rounded-full h-11 flex items-center justify-center font-medium" onclick="appendScientific('e')">e</button>
+            <button class="btn-calc text-neutral-300 text-xs sm:text-sm rounded-full h-11 flex items-center justify-center font-medium" onclick="appendScientific('^')">x^y</button>
+        </div>
+
+        <!-- Compact Buttons Grid (~52px circles) -->
+        <div class="grid grid-cols-4 gap-2.5 sm:gap-3 justify-items-center">
+            
+            <!-- Row 1 -->
+            <button onclick="clearAll()" class="btn-calc text-neutral-200 text-lg sm:text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">AC</button>
+            <button onclick="appendOperator('%')" class="btn-calc text-neutral-200 text-lg sm:text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">%</button>
+            <button onclick="backspace()" class="btn-calc text-neutral-200 text-base sm:text-lg font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">
+                <i class="fa-solid fa-delete-left"></i>
+            </button>
+            <button onclick="appendOperator('÷')" class="btn-calc text-neutral-200 text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">÷</button>
+
+            <!-- Row 2 -->
+            <button onclick="appendNumber('7')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">7</button>
+            <button onclick="appendNumber('8')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">8</button>
+            <button onclick="appendNumber('9')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">9</button>
+            <button onclick="appendOperator('×')" class="btn-calc text-neutral-200 text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">×</button>
+
+            <!-- Row 3 -->
+            <button onclick="appendNumber('4')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">4</button>
+            <button onclick="appendNumber('5')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">5</button>
+            <button onclick="appendNumber('6')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">6</button>
+            <button onclick="appendOperator('-')" class="btn-calc text-neutral-200 text-2xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">−</button>
+
+            <!-- Row 4 -->
+            <button onclick="appendNumber('1')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">1</button>
+            <button onclick="appendNumber('2')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">2</button>
+            <button onclick="appendNumber('3')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">3</button>
+            <button onclick="appendOperator('+')" class="btn-calc text-neutral-200 text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">+</button>
+
+            <!-- Row 5 -->
+            <button id="toggle-sci-btn" onclick="toggleScientific()" class="btn-calc text-neutral-300 w-[52px] h-[52px] rounded-full flex items-center justify-center p-1.5" title="Scientific Functions">
+                <div class="grid grid-cols-2 gap-0.5 text-[10px] leading-none font-semibold text-center opacity-90">
+                    <span>√</span><span>π</span>
+                    <span>e</span><span>=</span>
+                </div>
+            </button>
+            <button onclick="appendNumber('0')" class="btn-calc text-white text-xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center">0</button>
+            <button onclick="appendDecimal()" class="btn-calc text-white text-2xl font-bold w-[52px] h-[52px] rounded-full flex items-center justify-center">.</button>
+            
+            <!-- Orange Equals Button (Triggers Paywall) -->
+            <button onclick="triggerPaywall()" class="btn-orange text-2xl font-normal w-[52px] h-[52px] rounded-full flex items-center justify-center shadow-lg shadow-orange-950/40">=</button>
+        </div>
+
+        <!-- $999 Paywall Modal -->
+        <div id="paywall-modal" class="absolute inset-0 bg-black/90 backdrop-blur-md rounded-[38px] p-6 flex flex-col justify-between items-center text-center hidden z-30 animate-pop border border-orange-500/30">
+            <div class="flex flex-col items-center w-full pt-2">
+                <!-- Pro Badge -->
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white text-xl shadow-lg shadow-orange-500/30 mb-3">
+                    <i class="fa-solid fa-crown"></i>
+                </div>
+                
+                <h2 class="text-xl font-bold text-white tracking-tight">Unlock Premium Result</h2>
+                <p class="text-xs text-neutral-400 mt-1 max-w-[220px]">
+                    To calculate math equations and view final answers, upgrade to <span class="text-orange-400 font-medium">Calculator PRO</span>.
+                </p>
+
+                <!-- Pricing Box -->
+                <div class="w-full bg-neutral-900/90 border border-orange-500/30 rounded-2xl p-4 mt-5">
+                    <div class="text-xs text-orange-400 uppercase tracking-widest font-semibold mb-1">One-Time Fee</div>
+                    <div class="text-3xl font-extrabold text-white flex items-center justify-center gap-1">
+                        $999<span class="text-xs font-normal text-neutral-400">.00</span>
+                    </div>
+                    <p class="text-[11px] text-neutral-400 mt-1">
+                        Instant access to equal button calculations & basic arithmetic.
+                    </p>
+                </div>
+
+                <!-- Features list -->
+                <div class="w-full text-left mt-4 space-y-2 text-xs text-neutral-300 px-1">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-circle-check text-orange-500 text-sm"></i>
+                        <span>Unlimited use of the "=" button</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-circle-check text-orange-500 text-sm"></i>
+                        <span>High-precision results above 0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-circle-check text-orange-500 text-sm"></i>
+                        <span>Ad-free calculation experience</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full space-y-2 pb-1">
+                <button onclick="simulatePayment()" class="w-full py-3 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-sm hover:brightness-110 active:scale-95 transition shadow-lg shadow-orange-500/25">
+                    Pay $999.00 Now
+                </button>
+                
+                <button onclick="closePaywall()" class="w-full py-2 text-xs text-neutral-500 hover:text-neutral-300 transition">
+                    Maybe Later
+                </button>
+            </div>
+        </div>
+
+        <!-- History Drawer -->
+        <div id="history-drawer" class="absolute inset-0 bg-neutral-950/95 backdrop-blur-md rounded-[38px] p-5 flex flex-col justify-between translate-y-full drawer-slide z-20">
+            <div>
+                <div class="flex justify-between items-center mb-4 border-b border-neutral-800 pb-3">
+                    <h3 class="text-white text-base font-medium flex items-center gap-2">
+                        <i class="fa-regular fa-clock text-orange-500"></i> Calculation History
+                    </h3>
+                    <button onclick="closeHistory()" class="text-neutral-400 hover:text-white p-1">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                <div id="history-list" class="space-y-3 max-h-[420px] overflow-y-auto no-scrollbar text-right pr-1">
+                    <p id="empty-history-msg" class="text-neutral-500 text-center py-10 text-sm">No recent calculations</p>
+                </div>
+            </div>
+            
+            <button onclick="clearHistory()" class="w-full py-2.5 rounded-full border border-neutral-800 text-neutral-400 hover:text-red-400 hover:border-red-900/50 text-xs font-medium transition flex items-center justify-center gap-2">
+                <i class="fa-regular fa-trash-can"></i> Clear History
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // Core state variables
+        let currentInput = "0";
+        let expressionStr = "";
+        let history = [];
+        let sciOpen = false;
+
+        // DOM Element references
+        const displayEl = document.getElementById('display');
+        const expressionEl = document.getElementById('expression');
+        const historyDrawer = document.getElementById('history-drawer');
+        const historyList = document.getElementById('history-list');
+        const emptyHistoryMsg = document.getElementById('empty-history-msg');
+        const sciPanel = document.getElementById('sci-panel');
+        const toggleSciBtn = document.getElementById('toggle-sci-btn');
+        const paywallModal = document.getElementById('paywall-modal');
+
+        // Toggle Scientific helper mode
+        function toggleScientific() {
+            sciOpen = !sciOpen;
+            if (sciOpen) {
+                sciPanel.classList.remove('hidden');
+                toggleSciBtn.classList.add('btn-sci-active');
+            } else {
+                sciPanel.classList.add('hidden');
+                toggleSciBtn.classList.remove('btn-sci-active');
+            }
+        }
+
+        // Update UI displays (Note: NO result preview line below)
+        function updateDisplay() {
+            displayEl.innerText = formatDisplayNumber(currentInput);
+            expressionEl.innerText = expressionStr;
+        }
+
+        // Format numbers cleanly
+        function formatDisplayNumber(numStr) {
+            if (!numStr) return "0";
+            if (numStr === "Error") return "Error";
+            
+            if (numStr.endsWith('.') || numStr.includes('e') || numStr.includes('√')) {
+                return numStr;
+            }
+
+            const parts = numStr.split('.');
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            return parts.join('.');
+        }
+
+        // Append digits
+        function appendNumber(num) {
+            if (currentInput === "0") {
+                currentInput = num;
+            } else {
+                currentInput += num;
+            }
+            updateDisplay();
+        }
+
+        // Append decimal point safely
+        function appendDecimal() {
+            const lastNum = currentInput.split(/[\+\-×÷%]/).pop();
+            if (!lastNum.includes('.')) {
+                currentInput += '.';
+            }
+            updateDisplay();
+        }
+
+        // Append Math operators
+        function appendOperator(op) {
+            if (currentInput === "Error") clearAll();
+
+            const lastChar = currentInput.trim().slice(-1);
+            if (['+', '-', '×', '÷', '%'].includes(lastChar)) {
+                currentInput = currentInput.trim().slice(0, -1) + op;
+            } else {
+                currentInput += " " + op + " ";
+            }
+            updateDisplay();
+        }
+
+        // Append scientific functions
+        function appendScientific(fn) {
+            if (currentInput === "0") {
+                currentInput = fn;
+            } else {
+                currentInput += fn;
+            }
+            updateDisplay();
+        }
+
+        // Backspace action
+        function backspace() {
+            if (currentInput.length > 1) {
+                currentInput = currentInput.trimEnd();
+                currentInput = currentInput.slice(0, -1).trimEnd();
+                if (currentInput === "" || currentInput === "-") currentInput = "0";
+            } else {
+                currentInput = "0";
+            }
+            updateDisplay();
+        }
+
+        // Clear All (AC)
+        function clearAll() {
+            currentInput = "0";
+            expressionStr = "";
+            updateDisplay();
+        }
+
+        // Trigger Paywall when '=' is clicked
+        function triggerPaywall() {
+            paywallModal.classList.remove('hidden');
+        }
+
+        function closePaywall() {
+            paywallModal.classList.add('hidden');
+        }
+
+        function simulatePayment() {
+            alert("Payment declined! Insufficient funds ($999.00 needed). Please try another credit card.");
+        }
+
+        // History Drawer handlers
+        document.getElementById('history-btn').addEventListener('click', () => {
+            historyDrawer.classList.remove('translate-y-full');
+        });
+
+        function closeHistory() {
+            historyDrawer.classList.add('translate-y-full');
+        }
+
+        function clearHistory() {
+            history = [];
+            historyList.innerHTML = "";
+            emptyHistoryMsg.classList.remove('hidden');
+        }
+
+        // Keyboard Support
+        window.addEventListener('keydown', (e) => {
+            if (e.key >= '0' && e.key <= '9') appendNumber(e.key);
+            else if (e.key === '.') appendDecimal();
+            else if (e.key === '+') appendOperator('+');
+            else if (e.key === '-') appendOperator('-');
+            else if (e.key === '*') appendOperator('×');
+            else if (e.key === '/') { e.preventDefault(); appendOperator('÷'); }
+            else if (e.key === '%') appendOperator('%');
+            else if (e.key === 'Enter' || e.key === '=') { e.preventDefault(); triggerPaywall(); }
+            else if (e.key === 'Backspace') backspace();
+            else if (e.key === 'Escape') clearAll();
+        });
+
+        // Initialize display
+        updateDisplay();
+    </script>
+</body>
+</html>
